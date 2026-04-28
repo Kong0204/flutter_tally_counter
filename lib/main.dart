@@ -49,7 +49,7 @@ class TallyCounterApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        fontFamily: 'Inter',
+        //fontFamily: 'Inter',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),
       home: const HomeScreen(),
@@ -75,15 +75,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadWidgets() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? saved = prefs.getString('tally_widgets');
-    if (saved != null) {
-      final List<dynamic> decoded = jsonDecode(saved);
-      setState(() {
-        _widgets = decoded.map((item) => TallyWidget.fromJson(item)).toList();
-        _isLoading = false;
-      });
-    } else {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? saved = prefs.getString('tally_widgets');
+      if (saved != null) {
+        final List<dynamic> decoded = jsonDecode(saved);
+        setState(() {
+          _widgets = decoded.map((item) => TallyWidget.fromJson(item)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading widgets: $e');
+    } finally {
       setState(() => _isLoading = false);
     }
   }
@@ -107,10 +110,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _saveWidgets();
   }
 
-  void _updateWidget(TallyWidget widget) {
+  void _updateWidget(
+      TallyWidget widget, String newName, int newStep, String newColor) {
     setState(() {
       final index = _widgets.indexWhere((w) => w.id == widget.id);
-      if (index != -1) _widgets[index] = widget;
+      if (index != -1) {
+        _widgets[index] = TallyWidget(
+          id: widget.id,
+          name: newName.isEmpty ? 'New Counter' : newName,
+          count: widget.count,
+          step: newStep,
+          colorKey: newColor,
+        );
+      }
     });
     _saveWidgets();
   }
@@ -157,18 +169,22 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         title: const Text('Tally Counter',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: -0.5)),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Text(
-              'Active: ${_widgets.length}',
-              style: TextStyle(
-                  color: Colors.slate.shade400,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold),
+            padding: const EdgeInsets.only(right: 20.0),
+            child: Center(
+              child: Text(
+                'ACTIVE: ${_widgets.length}',
+                style: TextStyle(
+                    color: Colors.blueGrey.shade400,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5),
+              ),
             ),
           )
         ],
@@ -178,7 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
           : _widgets.isEmpty
               ? _buildEmptyState()
               : ReorderableListView.builder(
-                  padding: const EdgeInsets.all(24),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                   itemCount: _widgets.length,
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
@@ -188,6 +205,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     });
                     _saveWidgets();
                   },
+                  proxyDecorator: (widget, index, animation) => Material(
+                    color: Colors.transparent,
+                    child: widget,
+                  ),
                   itemBuilder: (context, index) {
                     final widget = _widgets[index];
                     return CounterCard(
@@ -210,12 +231,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.large(
         onPressed: () => _showEditModal(context, null),
-        backgroundColor: Colors.indigo,
+        backgroundColor: const Color(0xFF6366F1), // Indigo 600
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-        child: const Icon(Icons.add, size: 32),
+        elevation: 12,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: const Icon(Icons.add, size: 36),
       ),
     );
   }
@@ -226,16 +248,23 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-                color: Colors.slate.shade50, shape: BoxShape.circle),
-            child: Icon(Icons.add, size: 64, color: Colors.slate.shade300),
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.blueGrey.shade50, width: 2)),
+            child: Icon(Icons.add, size: 64, color: Colors.blueGrey.shade200),
           ),
           const SizedBox(height: 24),
           const Text('No counters found',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1E293B))),
+          const SizedBox(height: 8),
           const Text('Create your first tally counter to start tracking',
-              style: TextStyle(color: Colors.grey)),
+              style: TextStyle(
+                  color: Colors.blueGrey, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -251,6 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      elevation: 0,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(40))),
       builder: (context) => StatefulBuilder(
@@ -259,32 +289,62 @@ class _HomeScreenState extends State<HomeScreen> {
               bottom: MediaQuery.of(context).viewInsets.bottom,
               left: 32,
               right: 32,
-              top: 32),
+              top: 40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(existing == null ? 'New Tally' : 'Edit Counter',
-                  style: const TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.bold)),
-              const Text('Customize your widget preferences',
-                  style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(existing == null ? 'New Tally' : 'Edit Counter',
+                          style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5)),
+                      const Text('Customize your widget preferences',
+                          style: TextStyle(
+                              color: Colors.blueGrey,
+                              fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.blueGrey),
+                    style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF8FAFC)),
+                  )
+                ],
+              ),
+              const SizedBox(height: 40),
               const Text('WIDGET LABEL',
                   style: TextStyle(
                       fontSize: 10,
-                      fontWeight: FontWeight.black,
-                      letterSpacing: 2)),
-              const SizedBox(height: 8),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.5,
+                      color: Colors.blueGrey)),
+              const SizedBox(height: 12),
               TextField(
                 controller: nameController,
+                autofocus: true,
+                style:
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 decoration: InputDecoration(
                   hintText: 'Enter name (e.g. Daily Eggs)',
+                  hintStyle: TextStyle(color: Colors.blueGrey.shade300),
                   filled: true,
                   fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.all(20),
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                       borderSide: BorderSide.none),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide:
+                          const BorderSide(color: Color(0xFF6366F1), width: 2)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -294,110 +354,143 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('STEP',
+                        const Text('INC STEP',
                             style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.black,
-                                letterSpacing: 2)),
-                        const SizedBox(height: 8),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.5,
+                                color: Colors.blueGrey)),
+                        const SizedBox(height: 12),
                         TextField(
                           controller: stepController,
                           keyboardType: TextInputType.number,
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                           decoration: InputDecoration(
                             filled: true,
                             fillColor: const Color(0xFFF8FAFC),
+                            contentPadding: const EdgeInsets.all(20),
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(20),
                                 borderSide: BorderSide.none),
+                            focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF6366F1), width: 2)),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 20),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('THEME',
+                        const Text('VISUAL THEME',
                             style: TextStyle(
                                 fontSize: 10,
-                                fontWeight: FontWeight.black,
-                                letterSpacing: 2)),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children:
-                              ['indigo', 'emerald', 'blue', 'orange', 'rose']
-                                  .map((color) => GestureDetector(
-                                        onTap: () => setModalState(
-                                            () => selectedColor = color),
-                                        child: Container(
-                                          width: 24,
-                                          height: 24,
-                                          decoration: BoxDecoration(
-                                            color: _getColor(color),
-                                            shape: BoxShape.circle,
-                                            border: selectedColor == color
-                                                ? Border.all(
-                                                    color: Colors.black,
-                                                    width: 2)
-                                                : null,
-                                          ),
-                                        ),
-                                      ))
-                                  .toList(),
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.5,
+                                color: Colors.blueGrey)),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _colorPalette
+                              .take(5)
+                              .map((colorData) => GestureDetector(
+                                    onTap: () => setModalState(() =>
+                                        selectedColor = colorData['key']!),
+                                    child: AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: _getColor(colorData['key']!),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: selectedColor ==
+                                                colorData['key']
+                                            ? Border.all(
+                                                color: const Color(0xFF6366F1),
+                                                width: 3)
+                                            : null,
+                                        boxShadow: selectedColor ==
+                                                colorData['key']
+                                            ? [
+                                                BoxShadow(
+                                                    color: _getColor(
+                                                            colorData['key']!)
+                                                        .withOpacity(0.4),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2))
+                                              ]
+                                            : null,
+                                      ),
+                                    ),
+                                  ))
+                              .toList(),
                         )
                       ],
                     ),
                   )
                 ],
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 48),
               SizedBox(
                 width: double.infinity,
-                height: 60,
+                height: 64,
                 child: ElevatedButton(
                   onPressed: () {
                     final name = nameController.text;
                     final step = int.tryParse(stepController.text) ?? 1;
+
                     if (existing == null) {
                       _addWidget(
                           name: name, step: step, colorKey: selectedColor);
                     } else {
-                      existing.name = name;
-                      existing.step = step;
-                      existing.colorKey = selectedColor;
-                      _updateWidget(existing);
+                      // Pass the new values to the update method rather than mutating the object directly
+                      _updateWidget(existing, name, step, selectedColor);
                     }
                     Navigator.pop(context);
+                    nameController.dispose(); // Clean up
+                    stepController.dispose();
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
+                    backgroundColor: const Color(0xFF6366F1),
                     foregroundColor: Colors.white,
+                    elevation: 8,
+                    shadowColor: const Color(0xFF6366F1).withOpacity(0.4),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20)),
                   ),
                   child: Text(
                       existing == null ? 'Initialize Tally' : 'Confirm Update',
                       style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 18)),
+                          fontWeight: FontWeight.w900, fontSize: 18)),
                 ),
               ),
               if (existing != null)
-                Center(
-                  child: TextButton.icon(
-                    onPressed: () {
-                      _deleteWidget(existing.id);
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
-                    label: const Text('Delete Widget',
-                        style: TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold)),
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Center(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        _deleteWidget(existing.id);
+                        Navigator.pop(context);
+                      },
+                      icon: const Icon(Icons.delete_sweep_outlined,
+                          color: Color(0xFFF43F5E), size: 20),
+                      label: const Text('Delete Widget',
+                          style: TextStyle(
+                              color: Color(0xFFF43F5E),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14)),
+                    ),
                   ),
                 ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 48),
             ],
           ),
         ),
@@ -431,107 +524,146 @@ class CounterCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.slate.shade100),
+        border: Border.all(color: Colors.blueGrey.shade100, width: 1.5),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
+            color: Colors.blueGrey.shade200.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
+        children: [
+          Positioned(
+            top: -10,
+            right: -10,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(28.0),
+            child: Column(
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.open_with, color: Colors.slate, size: 20),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('COUNTER',
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.black,
-                                letterSpacing: 2,
-                                color: color)),
-                        Text(widget.name,
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(Icons.move_up,
+                              color: Colors.blueGrey, size: 18),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(widget.name,
+                                    style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: -0.5),
+                                    overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20)),
+                          child: Text('Step: ${widget.step}',
+                              style: TextStyle(
+                                  color: color,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900)),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: onEdit,
+                          icon: const Icon(Icons.settings_outlined,
+                              color: Colors.blueGrey, size: 22),
+                          style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF8FAFC)),
+                        ),
+                      ],
+                    )
                   ],
                 ),
+                const SizedBox(height: 48),
+                Text(
+                  '${widget.count}',
+                  style: const TextStyle(
+                      fontSize: 96,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -6,
+                      color: Color(0xFF1E293B)),
+                ),
+                const SizedBox(height: 48),
                 Row(
                   children: [
-                    Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 12, py: 4),
-                      decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20)),
-                      child: Text('Step: ${widget.step}',
-                          style: TextStyle(
-                              color: color,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold)),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: onDecrement,
+                        child: Container(
+                          height: 72,
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(24)),
+                          child: const Icon(Icons.remove,
+                              size: 36, color: Colors.blueGrey),
+                        ),
+                      ),
                     ),
-                    IconButton(
-                        onPressed: onEdit,
-                        icon: const Icon(Icons.settings,
-                            color: Colors.grey, size: 20)),
+                    const SizedBox(width: 16),
+                    TextButton(
+                      onPressed: onReset,
+                      child: const Text('RESET',
+                          style: TextStyle(
+                              color: Colors.blueGrey,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 11,
+                              letterSpacing: 2)),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: onIncrement,
+                        child: Container(
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                  color: color.withOpacity(0.3),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5))
+                            ],
+                          ),
+                          child: const Icon(Icons.add,
+                              size: 36, color: Colors.white),
+                        ),
+                      ),
+                    ),
                   ],
                 )
               ],
             ),
-            const SizedBox(height: 32),
-            Text('${widget.count}',
-                style: const TextStyle(
-                    fontSize: 80,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -4)),
-            const SizedBox(height: 32),
-            Row(
-              children: [
-                Expanded(
-                  child: IconButton(
-                    onPressed: onDecrement,
-                    style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16))),
-                    icon: const Icon(Icons.remove, size: 32),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                TextButton(
-                    onPressed: onReset,
-                    child: const Text('RESET',
-                        style: TextStyle(
-                            color: Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 10,
-                            letterSpacing: 2))),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: IconButton(
-                    onPressed: onIncrement,
-                    style: IconButton.styleFrom(
-                        backgroundColor: color,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16))),
-                    icon: const Icon(Icons.add, size: 32),
-                  ),
-                ),
-              ],
-            )
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
