@@ -1,3 +1,3 @@
-# flutter_tally_counter
+# Tally Counter
 
-apk available to download at build\app\outputs\flutter-apk\app-release.apk
+Flutter app that allows you to create multiple counters to keep track of separate numbers 
