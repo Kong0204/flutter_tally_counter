@@ -37,14 +37,6 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
-    // to rename the name of the built apk file
-    applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            def appName = "TallyCounter"
-            def versionName = variant.versionName
-            outputFileName = "${appName}-${versionName}.apk"
-        }
-    }
 }
 
 flutter {
