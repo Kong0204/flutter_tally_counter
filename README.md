@@ -1,3 +1,3 @@
 # flutter_tally_counter
 
-A new Flutter project.
+apk available to download at build\app\outputs\flutter-apk\app-release.apk
