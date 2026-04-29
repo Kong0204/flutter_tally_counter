@@ -25,8 +25,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   fonts:
-    - family: Inter
-      # fonts:
-      #   - asset: assets/fonts/Inter-Regular.ttf
-      #   - asset: assets/fonts/Inter-Bold.ttf
-      #     weight: 700
+    - family: Quicksand
+      fonts:
+        - asset: assets/fonts/Quicksand/Quicksand-VariableFont_wght.ttf
+          weight: 900

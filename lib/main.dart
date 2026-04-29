@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
 
 void main() {
+  // force app stay in portrait mode
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   runApp(const TallyCounterApp());
 }
 
@@ -49,7 +53,7 @@ class TallyCounterApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        //fontFamily: 'Inter',
+        fontFamily: 'Quicksand',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),
       home: const HomeScreen(),
@@ -178,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.only(right: 20.0),
             child: Center(
               child: Text(
-                'ACTIVE: ${_widgets.length}',
+                'ACTIVE WIDGETS: ${_widgets.length}',
                 style: TextStyle(
                     color: Colors.blueGrey.shade400,
                     fontSize: 10,
@@ -189,80 +193,84 @@ class _HomeScreenState extends State<HomeScreen> {
           )
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _widgets.isEmpty
-              ? _buildEmptyState()
-              : ReorderableListView.builder(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                  itemCount: _widgets.length,
-                  onReorder: (oldIndex, newIndex) {
-                    setState(() {
-                      if (newIndex > oldIndex) newIndex -= 1;
-                      final item = _widgets.removeAt(oldIndex);
-                      _widgets.insert(newIndex, item);
-                    });
-                    _saveWidgets();
-                  },
-                  proxyDecorator: (widget, index, animation) => Material(
-                    color: Colors.transparent,
-                    child: widget,
+      // wrapping the body in a SafeArea so the content stays above the navigation bar
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _widgets.isEmpty
+                ? _buildEmptyState()
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 32),
+                    itemCount: _widgets.length,
+                    onReorder: (oldIndex, newIndex) {
+                      setState(() {
+                        if (newIndex > oldIndex) newIndex -= 1;
+                        final item = _widgets.removeAt(oldIndex);
+                        _widgets.insert(newIndex, item);
+                      });
+                      _saveWidgets();
+                    },
+                    proxyDecorator: (widget, index, animation) => Material(
+                      color: Colors.transparent,
+                      child: widget,
+                    ),
+                    itemBuilder: (context, index) {
+                      final widget = _widgets[index];
+                      return CounterCard(
+                        key: ValueKey(widget.id),
+                        widget: widget,
+                        color: _getColor(widget.colorKey),
+                        onIncrement: () {
+                          setState(() => widget.count += widget.step);
+                          _saveWidgets();
+                        },
+                        onDecrement: () {
+                          setState(() => widget.count -= widget.step);
+                          _saveWidgets();
+                        },
+                        onReset: () {
+                          setState(() => widget.count = 0);
+                          _saveWidgets();
+                        },
+                        onEdit: () => _showEditModal(context, widget),
+                      );
+                    },
                   ),
-                  itemBuilder: (context, index) {
-                    final widget = _widgets[index];
-                    return CounterCard(
-                      key: ValueKey(widget.id),
-                      widget: widget,
-                      color: _getColor(widget.colorKey),
-                      onIncrement: () {
-                        setState(() => widget.count += widget.step);
-                        _saveWidgets();
-                      },
-                      onDecrement: () {
-                        setState(() => widget.count -= widget.step);
-                        _saveWidgets();
-                      },
-                      onReset: () {
-                        setState(() => widget.count = 0);
-                        _saveWidgets();
-                      },
-                      onEdit: () => _showEditModal(context, widget),
-                    );
-                  },
-                ),
-      floatingActionButton: FloatingActionButton.large(
-        onPressed: () => _showEditModal(context, null),
-        backgroundColor: const Color(0xFF6366F1), // Indigo 600
-        foregroundColor: Colors.white,
-        elevation: 12,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: const Icon(Icons.add, size: 36),
+        // create widget button
+      ),
+      floatingActionButton: Padding(
+        // Increase these values to move the button further from the edges
+        padding: const EdgeInsets.only(right: 5.0, bottom: 5.0),
+        child: SizedBox(
+          width: 65,
+          height: 65,
+          child: FloatingActionButton(
+            onPressed: () => _showEditModal(context, null),
+            backgroundColor: const Color.fromARGB(255, 76, 38, 76),
+            foregroundColor: Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+            child: const Icon(Icons.add, size: 40),
+          ),
+        ),
       ),
     );
   }
 
+  // screen when num of widgets created is zero
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(40),
-            decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.blueGrey.shade50, width: 2)),
-            child: Icon(Icons.add, size: 64, color: Colors.blueGrey.shade200),
-          ),
-          const SizedBox(height: 24),
-          const Text('No counters found',
+          Text('No counters found',
               style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF1E293B))),
-          const SizedBox(height: 8),
-          const Text('Create your first tally counter to start tracking',
+          SizedBox(height: 8),
+          Text('Create your first tally counter to start tracking',
               style: TextStyle(
                   color: Colors.blueGrey, fontWeight: FontWeight.w500)),
         ],
@@ -280,6 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      // i can prob delete this line
       elevation: 0,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(40))),
@@ -354,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('INC STEP',
+                        const Text('STEP',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
@@ -387,7 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('VISUAL THEME',
+                        const Text('THEME COLOR',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w900,
@@ -466,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(20)),
                   ),
                   child: Text(
-                      existing == null ? 'Initialize Tally' : 'Confirm Update',
+                      existing == null ? 'Create Widget' : 'Update Widget',
                       style: const TextStyle(
                           fontWeight: FontWeight.w900, fontSize: 18)),
                 ),
@@ -480,8 +489,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         _deleteWidget(existing.id);
                         Navigator.pop(context);
                       },
-                      icon: const Icon(Icons.delete_sweep_outlined,
-                          color: Color(0xFFF43F5E), size: 20),
                       label: const Text('Delete Widget',
                           style: TextStyle(
                               color: Color(0xFFF43F5E),
@@ -517,38 +524,28 @@ class CounterCard extends StatelessWidget {
     required this.onEdit,
   });
 
+  // created widgets
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 16),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(21),
         border: Border.all(color: Colors.blueGrey.shade100, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.blueGrey.shade200.withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            blurRadius: 13,
+            offset: const Offset(0, 7),
           )
         ],
       ),
       child: Stack(
         children: [
-          Positioned(
-            top: -10,
-            right: -10,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.05),
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.all(28.0),
+            padding: const EdgeInsets.all(18.0),
             child: Column(
               children: [
                 Row(
@@ -557,19 +554,21 @@ class CounterCard extends StatelessWidget {
                     Expanded(
                       child: Row(
                         children: [
-                          const Icon(Icons.move_up,
-                              color: Colors.blueGrey, size: 18),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
                           Expanded(
+                            // name of each widget
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(widget.name,
-                                    style: const TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: -0.5),
-                                    overflow: TextOverflow.ellipsis),
+                                Text(
+                                  widget.name,
+                                  // size of the name of widget
+                                  style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1),
+                                  softWrap: true,
+                                )
                               ],
                             ),
                           ),
@@ -577,10 +576,11 @@ class CounterCard extends StatelessWidget {
                       ),
                     ),
                     Row(
+                      // a widget's step number
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
+                              horizontal: 9, vertical: 4),
                           decoration: BoxDecoration(
                               color: color.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(20)),
@@ -590,35 +590,39 @@ class CounterCard extends StatelessWidget {
                                   fontSize: 10,
                                   fontWeight: FontWeight.w900)),
                         ),
-                        const SizedBox(width: 8),
+                        // increasing this sizedBox width pushes the STEP to the left
+                        const SizedBox(width: 27),
+                        // widget setting icon
                         IconButton(
                           onPressed: onEdit,
                           icon: const Icon(Icons.settings_outlined,
                               color: Colors.blueGrey, size: 22),
-                          style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFF8FAFC)),
+                          // style: IconButton.styleFrom(
+                          //     backgroundColor: const Color(0xFFF8FAFC)),
                         ),
                       ],
                     )
                   ],
                 ),
-                const SizedBox(height: 48),
+                // size of widgets created
+                const SizedBox(height: 10),
                 Text(
                   '${widget.count}',
                   style: const TextStyle(
-                      fontSize: 96,
+                      fontSize: 50,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -6,
+                      letterSpacing: 0,
                       color: Color(0xFF1E293B)),
                 ),
-                const SizedBox(height: 48),
+                // height of created widgets
+                const SizedBox(height: 17),
                 Row(
                   children: [
                     Expanded(
                       child: GestureDetector(
                         onTap: onDecrement,
                         child: Container(
-                          height: 72,
+                          height: 60,
                           decoration: BoxDecoration(
                               color: const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(24)),
@@ -634,7 +638,7 @@ class CounterCard extends StatelessWidget {
                           style: TextStyle(
                               color: Colors.blueGrey,
                               fontWeight: FontWeight.w900,
-                              fontSize: 11,
+                              fontSize: 9,
                               letterSpacing: 2)),
                     ),
                     const SizedBox(width: 16),
@@ -642,7 +646,7 @@ class CounterCard extends StatelessWidget {
                       child: GestureDetector(
                         onTap: onIncrement,
                         child: Container(
-                          height: 72,
+                          height: 60,
                           decoration: BoxDecoration(
                             color: color,
                             borderRadius: BorderRadius.circular(24),
